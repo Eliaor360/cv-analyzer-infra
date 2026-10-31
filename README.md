@@ -1,60 +1,219 @@
-# AI Job Screener — DevOps
+AI Job Screener | DevOps Infrastructure
 
-## Secrets (never commit real values)
+Kubernetes • Jenkins CI/CD • Docker • Prometheus • Grafana
 
-```bash
+Infrastructure and deployment configuration for the AI Job Screener platform, an AI-powered recruitment application designed to automate CV analysis and candidate ranking.
+
+This repository focuses on container orchestration, CI/CD automation, Kubernetes deployment, secrets management, and application monitoring.
+
+Team Project: Developed collaboratively as part of a DevOps & DevSecOps final project.
+
+Key Features
+
+* Kubernetes Orchestration: Deployment of application components using Kubernetes manifests.
+* CI/CD Automation: Jenkins pipeline for testing, building, publishing, and deploying application images.
+* Containerization: Docker-based application packaging.
+* Secrets Management: Kubernetes Secrets and Jenkins credentials for sensitive configuration.
+* Monitoring & Observability: Prometheus metrics collection and Grafana dashboards.
+* Automated Validation: Health checks and API smoke tests following deployment.
+* Local Kubernetes Environment: Minikube-based deployment and testing.
+
+Technology Stack
+
+Category	Technologies
+Containerization	Docker
+Container Orchestration	Kubernetes, Minikube
+CI/CD	Jenkins
+Container Registry	Docker Hub
+Monitoring	Prometheus, Grafana
+Backend	Python, Flask
+Frontend	React
+Database	PostgreSQL
+Configuration	Kubernetes ConfigMaps & Secrets
+Testing	Unit Tests, API Smoke Tests
+
+System Architecture
+
+flowchart LR
+    HR[HR User] --> FE[React Frontend]
+    FE -->|REST API| BE[Flask Backend]
+    BE --> PG[(PostgreSQL)]
+    BE --> AI[AI Scoring Service]
+    BE -->|Metrics| PROM[Prometheus]
+    PROM --> GRAF[Grafana]
+
+Architecture Components
+
+Frontend: React-based interface for job management and candidate evaluation.
+
+Backend: Flask REST API handling candidate processing, AI scoring, and analytics.
+
+Database: PostgreSQL for persistent application data.
+
+AI Integration: External AI scoring service with configurable API settings.
+
+Monitoring: Prometheus collects application metrics, while Grafana provides visualization dashboards.
+
+CI/CD Pipeline
+
+The Jenkins pipeline automates the application delivery process.
+
+Pipeline Stages
+
+Checkout
+   |
+   v
+Lint
+   |
+   v
+Unit Tests
+   |
+   v
+Docker Build
+   |
+   v
+Push to Docker Hub
+   |
+   v
+Deploy to Kubernetes
+   |
+   v
+Health & API Tests
+
+The pipeline is designed to validate application changes before deploying updated containers to Kubernetes.
+
+Kubernetes Deployment
+
+Prerequisites
+
+* Docker
+* Kubernetes
+* kubectl
+* Minikube
+
+1. Start Minikube
+
+minikube start --driver=docker
+minikube addons enable ingress
+
+2. Create Namespace
+
 kubectl apply -f k8s/namespace.yaml
+
+3. Configure Secrets
+
+Never commit real credentials or API keys to Git.
+
 kubectl -n job-screener create secret generic app-secrets \
   --from-literal=postgres-password=CHANGE_ME \
   --from-literal=muse-spark-key=CHANGE_ME \
   --from-literal=muse-spark-base-url=https://opencode.ai/zen/go/v1
+
+Replace placeholder values with your own credentials.
+
+4. Deploy Application
+
 kubectl apply -n job-screener -R -f k8s/
-```
 
-Apply order: namespace → secret → configmap → postgres → backend → frontend → ingress.
+Recommended deployment order:
 
-## Minikube
+1. Namespace
+2. Secrets
+3. ConfigMaps
+4. PostgreSQL
+5. Backend
+6. Frontend
+7. Ingress
 
-```bash
-minikube start --driver=docker
-minikube addons enable ingress
-# add "$(minikube ip) screener.local" to hosts
-```
+5. Verify Deployment
 
-Verify: `kubectl -n job-screener rollout status deploy/backend`, then
-`bash scripts/smoke.sh http://$(minikube ip)` (or port-forward
-`svc/backend 5000:5000` and use `http://localhost:5000`).
+kubectl -n job-screener get pods
 
-## Jenkins credentials
+Check backend rollout:
 
-| ID | Type |
-| -- | ---- |
-| `docker-hub-creds` | username/password |
-| `kube-config` | kubeconfig file |
-| `muse-spark-key` | secret text |
-| `dockerhub-user` / `muse-spark-base-url` | env/credential per Jenkinsfile |
+kubectl -n job-screener rollout status deploy/backend
 
-Pipeline stages: Checkout → Lint → Unit Tests → Docker Build → Push →
-Deploy K8s → Health/API Test.
+6. Run Smoke Tests
 
-## Monitoring
+bash scripts/smoke.sh http://$(minikube ip)
 
-```bash
+Alternatively, forward the backend service:
+
+kubectl -n job-screener port-forward svc/backend 5000:5000
+
+Then test using:
+
+http://localhost:5000
+
+For ingress-based access, configure screener.local to resolve to the Minikube IP address.
+
+Jenkins Configuration
+
+The pipeline uses Jenkins credentials to manage authentication and sensitive configuration.
+
+Credential ID	Type	Purpose
+docker-hub-creds	Username / Password	Docker Hub authentication
+kube-config	Secret File	Kubernetes cluster access
+muse-spark-key	Secret Text	AI API authentication
+dockerhub-user	Environment Variable / Credential	Docker Hub username
+muse-spark-base-url	Environment Variable / Credential	AI service endpoint
+
+Credentials must be configured in Jenkins before running the pipeline.
+
+Monitoring & Observability
+
+The monitoring stack uses Prometheus and Grafana.
+
+Deploy Prometheus
+
 kubectl apply -n job-screener -f monitoring/prometheus.yaml
-curl backend:5000/metrics | grep screening_requests_total
-```
 
-Import `monitoring/grafana-dashboard.json` into Grafana (panels: request
-rate, AI failures, p95 latency; average score via `GET /api/analytics/overview`).
+Application Metrics
 
-## Architecture
+The backend exposes metrics through:
 
-```mermaid
-flowchart LR
-  HR[HR User] --> FE[React Frontend]
-  FE -->|REST /api| BE[Flask Backend]
-  BE --> PG[(PostgreSQL)]
-  BE --> AI[Muse Spark via OpenCode Zen]
-  BE -->|/metrics| PROM[Prometheus]
-  PROM --> GRAF[Grafana]
-```
+GET /metrics
+
+Example metric:
+
+screening_requests_total
+
+Grafana Dashboard
+
+Import the dashboard configuration:
+
+monitoring/grafana-dashboard.json
+
+The dashboard includes:
+
+* Application request rate
+* AI processing failures
+* P95 request latency
+
+Candidate scoring analytics are also available through:
+
+GET /api/analytics/overview
+
+Security Considerations
+
+The infrastructure includes several security-related practices:
+
+* Sensitive configuration stored in Kubernetes Secrets.
+* Jenkins credentials used for CI/CD authentication.
+* Separation of application configuration from container images.
+* Automated validation during the CI/CD process.
+* Application health monitoring.
+
+Note: Kubernetes Secrets are not encrypted by default in etcd unless encryption at rest is configured. Production deployments should also enforce appropriate RBAC and secret access controls.
+
+Related Repository
+
+Application Source Code:
+
+AI Job Screener - Application
+
+Project Credits
+
+Developed collaboratively as part of a DevOps & DevSecOps final project.
+
+This repository is maintained as a personal portfolio copy, preserving the original contribution history and acknowledging the collaborative development effort.
